@@ -66,8 +66,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             plugins/idjoy-seo/skills/idjoy-seo/resources/idjoy-seo-ai-search-checklist.pdf \
-            plugins/idjoy-seo/skills/idjoy-seo/assets/idjoy-logo.png \
-            plugins/idjoy-seo/idjoy-seo.zip
+            plugins/idjoy-seo/skills/idjoy-seo/assets/idjoy-logo.png
+          # The repository intentionally ignores generic ZIP archives. This one is
+          # the reviewed public distribution artifact for the IDJOY SEO skill.
+          git add -f plugins/idjoy-seo/idjoy-seo.zip
           if git diff --cached --quiet; then
             echo "Generated resources already current"
             exit 0
