@@ -1,0 +1,76 @@
+name: Build IDJOY SEO resources
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "plugins/idjoy-seo/**"
+      - ".github/workflows/idjoy-seo-resources.yml"
+  push:
+    branches: [main]
+    paths:
+      - "plugins/idjoy-seo/**"
+      - ".github/workflows/idjoy-seo-resources.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-resources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install PDF dependencies
+        run: python -m pip install --disable-pip-version-check reportlab cairosvg pypdf
+
+      - name: Build PDF, logo and skill ZIP
+        run: python plugins/idjoy-seo/scripts/build_resources.py
+
+      - name: Validate generated PDF and ZIP
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from pypdf import PdfReader
+          import zipfile
+          pdf = Path('plugins/idjoy-seo/skills/idjoy-seo/resources/idjoy-seo-ai-search-checklist.pdf')
+          archive = Path('plugins/idjoy-seo/idjoy-seo.zip')
+          logo = Path('plugins/idjoy-seo/skills/idjoy-seo/assets/idjoy-logo.png')
+          assert pdf.exists() and pdf.stat().st_size > 10000
+          assert logo.exists() and logo.stat().st_size > 1000
+          reader = PdfReader(str(pdf))
+          assert len(reader.pages) >= 10
+          text = '\n'.join((p.extract_text() or '') for p in reader.pages)
+          for required in ['IDJOY (Pty) Ltd', 'understand', 'trust', 'AI-search readiness']:
+              assert required in text, required
+          with zipfile.ZipFile(archive) as z:
+              assert 'idjoy-seo/SKILL.md' in z.namelist()
+              assert 'idjoy-seo/resources/idjoy-seo-ai-search-checklist.pdf' in z.namelist()
+          print(f'Validated {len(reader.pages)} PDF pages and the skill ZIP')
+          PY
+
+      - name: Commit generated resources on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            plugins/idjoy-seo/skills/idjoy-seo/resources/idjoy-seo-ai-search-checklist.pdf \
+            plugins/idjoy-seo/skills/idjoy-seo/assets/idjoy-logo.png \
+            plugins/idjoy-seo/idjoy-seo.zip
+          if git diff --cached --quiet; then
+            echo "Generated resources already current"
+            exit 0
+          fi
+          git commit -m "chore: build IDJOY SEO downloadable resources [skip ci]"
+          git push origin HEAD:main
